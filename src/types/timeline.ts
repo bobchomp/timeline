@@ -12,12 +12,15 @@ export interface TimelineEvent {
   order: number;
 }
 
+export type LayoutMode = "vertical" | "horizontal";
+
 export interface Timeline {
   id: string;
   name: string;
   description: string;
   editKey: string;
   createdAt: string;
+  layout: LayoutMode;
   events: TimelineEvent[];
 }
 

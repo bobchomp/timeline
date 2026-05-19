@@ -50,7 +50,13 @@ export async function PUT(
     return NextResponse.json({ error: "missing_edit_key" }, { status: 401 });
   }
   try {
-    const data = await callScript({ action: "updateTimeline", id, ...body });
+    const data = await callScript({
+      action: "updateTimeline",
+      id,
+      editKey: body.editKey,
+      events: body.events,
+      layout: body.layout,
+    });
     return NextResponse.json(data ?? { success: true });
   } catch (err) {
     console.error("[timelines/id] PUT failed:", err);

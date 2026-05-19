@@ -74,7 +74,7 @@ export default function Dashboard() {
     const createdAt = new Date().toISOString();
 
     const meta: TimelineMeta = { id, name: newName.trim(), description: newDesc.trim(), editKey, createdAt };
-    const timeline: Timeline = { ...meta, events: makeStarterEvents(id) };
+    const timeline: Timeline = { ...meta, layout: "vertical", events: makeStarterEvents(id) };
 
     saveTimelineLocally(timeline);
     const newList = [meta, ...list];

@@ -8,9 +8,9 @@ Connect Timeline Studio to a Google Sheet so timelines are stored in the cloud a
 2. Create **two sheet tabs** named exactly **`Timelines`** and **`Events`**.
 3. Add these headers in row 1 of each tab:
 
-**Timelines** tab (columns A–E):
+**Timelines** tab (columns A–F):
 ```
-id | name | description | editKey | createdAt
+id | name | description | editKey | createdAt | layout
 ```
 
 **Events** tab (columns A–H):
@@ -69,7 +69,7 @@ function getTimeline(id) {
 
 function createTimeline(data) {
   const sheet = ss.getSheetByName("Timelines");
-  const headers = ["id", "name", "description", "editKey", "createdAt"];
+  const headers = ["id", "name", "description", "editKey", "createdAt", "layout"];
   sheet.appendRow(headers.map(h => data[h] ?? ""));
 
   // Save starter events if any
@@ -92,6 +92,17 @@ function updateTimeline(id, body) {
   // Validate editKey
   const row = tData.find((r, i) => i > 0 && r[idCol] === id);
   if (!row || row[editKeyCol] !== body.editKey) return json({ error: "unauthorized" });
+
+  // Update layout if provided
+  if (body.layout !== undefined) {
+    const layoutCol = headers.indexOf("layout");
+    for (let i = 1; i < tData.length; i++) {
+      if (tData[i][idCol] === id) {
+        tSheet.getRange(i + 1, layoutCol + 1).setValue(body.layout);
+        break;
+      }
+    }
+  }
 
   // Replace events for this timeline
   if (body.events) {

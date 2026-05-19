@@ -9,9 +9,13 @@ const DATA_PREFIX = "tl_";
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
+    year: "numeric", month: "long", day: "numeric",
+  });
+}
+
+function formatDateShort(dateStr: string): string {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
   });
 }
 
@@ -22,7 +26,6 @@ export default function TimelineViewer({ timelineId }: { timelineId: string }) {
 
   useEffect(() => {
     async function load() {
-      // Try API first (works when Sheets is configured)
       try {
         const res = await fetch(`/api/timelines/${timelineId}`);
         const data = await res.json();
@@ -31,16 +34,12 @@ export default function TimelineViewer({ timelineId }: { timelineId: string }) {
           setLoading(false);
           return;
         }
-      } catch {
-        // fall through
-      }
+      } catch { /* fall through */ }
 
-      // Fallback: localStorage
       try {
         const raw = localStorage.getItem(`${DATA_PREFIX}${timelineId}`);
         if (raw) {
-          const tl = JSON.parse(raw) as Timeline;
-          setTimeline(tl);
+          setTimeline(JSON.parse(raw) as Timeline);
         } else {
           setNotFound(true);
         }
@@ -76,15 +75,16 @@ export default function TimelineViewer({ timelineId }: { timelineId: string }) {
   }
 
   const sorted = [...timeline.events].sort((a, b) => a.order - b.order);
+  const isHorizontal = timeline.layout === "horizontal";
 
   return (
     <div className="min-h-screen px-4 py-10 md:py-16">
-      <div className="max-w-2xl mx-auto">
+      <div className={isHorizontal ? "max-w-full" : "max-w-2xl mx-auto"}>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          className={`mb-10 ${isHorizontal ? "max-w-2xl mx-auto" : ""}`}
         >
           <Link href="/" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-700 transition-colors mb-6">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -111,50 +111,104 @@ export default function TimelineViewer({ timelineId }: { timelineId: string }) {
             <div className="text-5xl mb-3">✨</div>
             <p className="text-lg font-medium text-gray-500">No events yet</p>
           </div>
+        ) : isHorizontal ? (
+          <HorizontalView events={sorted} />
         ) : (
-          <div className="relative">
-            <div className="timeline-line absolute left-[22px] top-0 bottom-0 w-0.5" />
-            <div className="space-y-6">
-              <AnimatePresence>
-                {sorted.map((event: TimelineEvent, i) => {
-                  const colors = COLOR_MAP[event.color];
-                  return (
-                    <motion.div
-                      key={event.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.07 }}
-                      className="relative flex items-start gap-5"
-                    >
-                      {/* Dot */}
-                      <div className="relative z-10 mt-5 flex-shrink-0">
-                        <div
-                          className={`w-4 h-4 rounded-full border-2 border-white ${colors.dot}`}
-                          style={{ boxShadow: `0 0 8px ${colors.glow}` }}
-                        />
-                      </div>
-                      {/* Card */}
-                      <div className={`flex-1 bg-white rounded-2xl p-5 border-l-4 ${colors.border} ${colors.bg} card-shadow`}>
-                        <div className="flex items-start gap-4">
-                          <span className="text-3xl leading-none select-none shrink-0">{event.emoji}</span>
-                          <div>
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                              {formatDate(event.date)}
-                            </p>
-                            <h3 className="text-lg font-bold text-gray-900 leading-tight">{event.title}</h3>
-                            {event.description && (
-                              <p className="mt-2 text-sm text-gray-500 leading-relaxed">{event.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          </div>
+          <VerticalView events={sorted} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function VerticalView({ events }: { events: TimelineEvent[] }) {
+  return (
+    <div className="relative">
+      <div className="timeline-line absolute left-[22px] top-0 bottom-0 w-0.5" />
+      <div className="space-y-6">
+        <AnimatePresence>
+          {events.map((event, i) => {
+            const colors = COLOR_MAP[event.color];
+            return (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.07 }}
+                className="relative flex items-start gap-5"
+              >
+                <div className="relative z-10 mt-5 flex-shrink-0">
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 border-white ${colors.dot}`}
+                    style={{ boxShadow: `0 0 8px ${colors.glow}` }}
+                  />
+                </div>
+                <div className={`flex-1 bg-white rounded-2xl p-5 border-l-4 ${colors.border} ${colors.bg} card-shadow`}>
+                  <div className="flex items-start gap-4">
+                    <span className="text-3xl leading-none select-none shrink-0">{event.emoji}</span>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                        {formatDate(event.date)}
+                      </p>
+                      <h3 className="text-lg font-bold text-gray-900 leading-tight">{event.title}</h3>
+                      {event.description && (
+                        <p className="mt-2 text-sm text-gray-500 leading-relaxed">{event.description}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function HorizontalView({ events }: { events: TimelineEvent[] }) {
+  return (
+    <div className="overflow-x-auto pb-6">
+      <div className="relative inline-flex items-start gap-0 min-w-max px-4">
+        {/* Horizontal gradient line */}
+        <div
+          className="timeline-line absolute top-[18px] h-0.5"
+          style={{ left: "calc(2rem + 8px)", right: "calc(2rem + 8px)" }}
+        />
+        <AnimatePresence>
+          {events.map((event, i) => {
+            const colors = COLOR_MAP[event.color];
+            return (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.07 }}
+                className="relative flex flex-col items-center w-52 px-3"
+              >
+                {/* Dot */}
+                <div
+                  className={`relative z-10 w-4 h-4 rounded-full border-2 border-white ${colors.dot} mb-4 flex-shrink-0`}
+                  style={{ boxShadow: `0 0 8px ${colors.glow}` }}
+                />
+                {/* Card */}
+                <div
+                  className={`w-full bg-white rounded-2xl ${colors.bg} card-shadow p-4`}
+                  style={{ borderTop: `4px solid ${colors.swatch}` }}
+                >
+                  <div className="text-center mb-2">
+                    <div className="text-3xl leading-none mb-2">{event.emoji}</div>
+                    <h3 className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{event.title}</h3>
+                  </div>
+                  <p className="text-xs font-semibold text-gray-400 text-center mb-2">{formatDateShort(event.date)}</p>
+                  {event.description && (
+                    <p className="text-xs text-gray-500 leading-relaxed text-center line-clamp-3">{event.description}</p>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );

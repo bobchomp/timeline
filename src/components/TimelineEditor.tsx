@@ -12,15 +12,13 @@ import {
   verticalListSortingStrategy, horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis, restrictToHorizontalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
-import { Timeline, TimelineEvent, TimelineMeta, COLOR_MAP, makeStarterEvents } from "@/types/timeline";
+import { Timeline, TimelineEvent, TimelineMeta, LayoutMode, COLOR_MAP, makeStarterEvents } from "@/types/timeline";
 import EventCard from "./EventCard";
 import EventModal from "./EventModal";
 import ShareModal from "./ShareModal";
 
 const LIST_KEY = "tl_list";
 const DATA_PREFIX = "tl_";
-
-type LayoutMode = "vertical" | "horizontal";
 
 function genId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -44,12 +42,12 @@ function getEditKeyFromList(id: string): string | null {
   } catch { return null; }
 }
 
-async function syncEvents(timeline: Timeline) {
+async function syncTimeline(timeline: Timeline) {
   try {
     await fetch(`/api/timelines/${timeline.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ editKey: timeline.editKey, events: timeline.events }),
+      body: JSON.stringify({ editKey: timeline.editKey, events: timeline.events, layout: timeline.layout }),
     });
   } catch { /* fire-and-forget */ }
 }
@@ -75,7 +73,7 @@ export default function TimelineEditor({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [layout, setLayout] = useState<LayoutMode>("vertical");
+  const [layout, setLayout] = useState<LayoutMode>("vertical"); // mirrored in timeline.layout
 
   useEffect(() => {
     async function load() {
@@ -104,6 +102,7 @@ export default function TimelineEditor({
         tl = {
           id: timelineId, name: "My Timeline", description: "",
           editKey, createdAt: new Date().toISOString(),
+          layout: "vertical",
           events: makeStarterEvents(timelineId),
         };
         saveTimelineLocally(tl);
@@ -118,9 +117,8 @@ export default function TimelineEditor({
         localStorage.setItem(LIST_KEY, JSON.stringify(list));
       }
 
-      // Restore saved layout preference
-      const savedLayout = localStorage.getItem(`tl_layout_${timelineId}`) as LayoutMode | null;
-      if (savedLayout) setLayout(savedLayout);
+      // Restore layout from timeline data (falls back to vertical)
+      if (tl.layout) setLayout(tl.layout);
 
       setTimeline(tl);
       setLoading(false);
@@ -129,15 +127,16 @@ export default function TimelineEditor({
   }, [timelineId, urlKey]);
 
   const toggleLayout = (mode: LayoutMode) => {
+    if (!timeline || mode === layout) return;
     setLayout(mode);
-    localStorage.setItem(`tl_layout_${timelineId}`, mode);
+    save({ ...timeline, layout: mode });
   };
 
   const save = useCallback((updated: Timeline) => {
     saveTimelineLocally(updated);
     setTimeline(updated);
     setSyncing(true);
-    syncEvents(updated).finally(() => setSyncing(false));
+    syncTimeline(updated).finally(() => setSyncing(false));
   }, []);
 
   const sensors = useSensors(
