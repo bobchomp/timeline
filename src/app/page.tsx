@@ -1,9 +1,5 @@
-import Timeline from "@/components/Timeline";
+import Dashboard from "@/components/Dashboard";
 
 export default function Home() {
-  return (
-    <main className="min-h-screen" style={{ background: "#0f0f1a" }}>
-      <Timeline />
-    </main>
-  );
+  return <Dashboard />;
 }

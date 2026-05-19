@@ -8,7 +8,7 @@ import EmojiPicker from "./EmojiPicker";
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (event: Omit<TimelineEvent, "id" | "order">) => void;
+  onSave: (event: Omit<TimelineEvent, "id" | "order" | "timelineId">) => void;
   editingEvent?: TimelineEvent | null;
 }
 
@@ -44,147 +44,111 @@ export default function EventModal({ isOpen, onClose, onSave, editingEvent }: Ev
     onClose();
   };
 
-  const colors = Object.entries(COLOR_MAP) as [ColorTheme, typeof COLOR_MAP[ColorTheme]][];
-
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
             onClick={onClose}
           />
-
-          {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            initial={{ opacity: 0, scale: 0.94, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 20 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            exit={{ opacity: 0, scale: 0.94, y: 16 }}
+            transition={{ type: "spring", damping: 28, stiffness: 320 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl"
-              style={{
-                background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%)",
-                boxShadow: "0 25px 50px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08)",
-              }}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-white/10">
-                <h2 className="text-xl font-bold text-white">
-                  {editingEvent ? "✏️ Edit Event" : "✨ Add New Event"}
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-gray-100">
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingEvent ? "Edit Event" : "Add Event"}
                 </h2>
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all duration-150 text-lg"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
                 >
-                  ×
+                  ✕
                 </button>
               </div>
 
-              {/* Form */}
               <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                {/* Title */}
                 <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Title</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Title *</label>
                   <input
                     type="text"
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
                     placeholder="What happened?"
                     required
-                    className="w-full px-4 py-3 rounded-xl bg-white/8 border border-white/15 text-white placeholder-white/30 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50 transition-all duration-150"
-                    style={{ background: "rgba(255,255,255,0.06)" }}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all"
                   />
                 </div>
 
-                {/* Date */}
                 <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Date *</label>
                   <input
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm({ ...form, date: e.target.value })}
                     required
-                    className="w-full px-4 py-3 rounded-xl border border-white/15 text-white focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50 transition-all duration-150 [color-scheme:dark]"
-                    style={{ background: "rgba(255,255,255,0.06)" }}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all"
                   />
                 </div>
 
-                {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Description</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Description</label>
                   <textarea
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder="Tell the story..."
+                    placeholder="Tell the story…"
                     rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-white/15 text-white placeholder-white/30 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400/50 transition-all duration-150 resize-none"
-                    style={{ background: "rgba(255,255,255,0.06)" }}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all resize-none"
                   />
                 </div>
 
-                {/* Emoji */}
                 <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">
-                    Emoji Icon — selected: <span className="text-xl">{form.emoji}</span>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Icon <span className="text-xl ml-1">{form.emoji}</span>
                   </label>
-                  <EmojiPicker
-                    selected={form.emoji}
-                    onSelect={(emoji) => setForm({ ...form, emoji })}
-                  />
+                  <EmojiPicker selected={form.emoji} onSelect={(e) => setForm({ ...form, emoji: e })} />
                 </div>
 
-                {/* Color */}
                 <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Color Theme</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Color</label>
                   <div className="flex flex-wrap gap-2">
-                    {colors.map(([key, val]) => (
+                    {(Object.entries(COLOR_MAP) as [ColorTheme, typeof COLOR_MAP[ColorTheme]][]).map(([c, cm]) => (
                       <button
-                        key={key}
+                        key={c}
                         type="button"
-                        onClick={() => setForm({ ...form, color: key })}
-                        title={val.label}
-                        className={`
-                          flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150
-                          ${form.color === key
-                            ? `${val.border} ${val.bg} text-white scale-105 shadow-lg`
-                            : "border-white/20 bg-white/5 text-white/60 hover:border-white/40 hover:text-white"
-                          }
-                        `}
-                      >
-                        <span className={`w-3 h-3 rounded-full ${val.dot}`} />
-                        {val.label}
-                      </button>
+                        onClick={() => setForm({ ...form, color: c })}
+                        title={cm.label}
+                        className="w-8 h-8 rounded-full transition-all hover:scale-110"
+                        style={{
+                          backgroundColor: cm.swatch,
+                          outline: form.color === c ? `3px solid ${cm.swatch}` : "none",
+                          outlineOffset: "2px",
+                          transform: form.color === c ? "scale(1.15)" : undefined,
+                        }}
+                      />
                     ))}
                   </div>
                 </div>
 
-                {/* Buttons */}
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 py-3 rounded-xl border border-white/20 text-white/70 hover:bg-white/10 hover:text-white transition-all duration-150 font-medium"
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-all"
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-3 rounded-xl font-semibold text-white transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]"
-                    style={{
-                      background: "linear-gradient(135deg, #7c3aed, #ec4899)",
-                      boxShadow: "0 4px 20px rgba(124, 58, 237, 0.4)",
-                    }}
-                  >
-                    {editingEvent ? "Save Changes" : "Add Event"}
+                  <button type="submit" className="flex-1 py-2.5 rounded-xl font-semibold btn-primary">
+                    {editingEvent ? "Save Changes" : "Add to Timeline"}
                   </button>
                 </div>
               </form>

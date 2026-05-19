@@ -9,7 +9,7 @@ interface EmojiPickerProps {
 
 export default function EmojiPicker({ selected, onSelect }: EmojiPickerProps) {
   return (
-    <div className="grid grid-cols-6 gap-2 p-3 bg-white/5 rounded-xl border border-white/10">
+    <div className="grid grid-cols-6 gap-1.5 p-3 bg-gray-50 rounded-xl border border-gray-200">
       {EMOJI_LIST.map((emoji) => (
         <button
           key={emoji}
@@ -17,10 +17,10 @@ export default function EmojiPicker({ selected, onSelect }: EmojiPickerProps) {
           onClick={() => onSelect(emoji)}
           className={`
             text-2xl h-10 w-full flex items-center justify-center rounded-lg
-            transition-all duration-150 hover:scale-110 hover:bg-white/15
+            transition-all duration-150 hover:scale-110
             ${selected === emoji
-              ? "bg-white/20 ring-2 ring-purple-400 scale-110"
-              : "bg-white/5"
+              ? "bg-purple-100 ring-2 ring-purple-400 scale-110"
+              : "hover:bg-gray-200"
             }
           `}
           title={emoji}

@@ -1,52 +1,62 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f0f1a;
-  --foreground: #ededed;
+  --bg: #f8f7ff;
+  --bg-card: #ffffff;
+  --text-primary: #111827;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--text-primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text-primary);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #1a1a2e;
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f0ff; }
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(to bottom, #7c3aed, #ec4899);
   border-radius: 3px;
 }
 
-/* Timeline gradient line */
 .timeline-line {
   background: linear-gradient(to bottom, #7c3aed, #ec4899, #f97316);
 }
 
-/* Frosted glass card */
-.glass-card {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.card-shadow {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.06);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-shadow:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 8px 32px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
 }
 
-/* Glow effect on hover */
-.card-glow {
-  transition: box-shadow 0.3s ease, transform 0.2s ease;
+.gradient-text {
+  background: linear-gradient(135deg, #7c3aed, #ec4899, #f97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
-.card-glow:hover {
-  transform: translateY(-2px);
+
+.btn-primary {
+  background: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(124,58,237,0.3);
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
 }
+.btn-primary:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(124,58,237,0.4);
+}
+.btn-primary:active { transform: translateY(0); }
