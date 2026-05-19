@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f0f1a;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #7c3aed, #ec4899);
+  border-radius: 3px;
+}
+
+/* Timeline gradient line */
+.timeline-line {
+  background: linear-gradient(to bottom, #7c3aed, #ec4899, #f97316);
+}
+
+/* Frosted glass card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Glow effect on hover */
+.card-glow {
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+.card-glow:hover {
+  transform: translateY(-2px);
+}
