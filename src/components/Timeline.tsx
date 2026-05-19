@@ -29,27 +29,58 @@ function generateId(): string {
   return `event-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+async function syncToSheet(action: string, payload: object): Promise<void> {
+  try {
+    await fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+  } catch {
+    // fire-and-forget; localStorage is source of truth if Sheets is down
+  }
+}
+
 export default function Timeline() {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [sheetsConfigured, setSheetsConfigured] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from Sheets API (falls back to localStorage)
   useEffect(() => {
     setMounted(true);
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as TimelineEvent[];
-        setEvents(parsed);
-      } else {
+    async function load() {
+      try {
+        const res = await fetch("/api/events");
+        const data = await res.json();
+        if (data.configured) {
+          setSheetsConfigured(true);
+          if (data.events && data.events.length > 0) {
+            const sorted = [...data.events].sort((a: TimelineEvent, b: TimelineEvent) => a.order - b.order);
+            setEvents(sorted);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
+            return;
+          }
+        }
+      } catch {
+        // fall through to localStorage
+      }
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          setEvents(JSON.parse(stored) as TimelineEvent[]);
+        } else {
+          setEvents(STARTER_EVENTS);
+        }
+      } catch {
         setEvents(STARTER_EVENTS);
       }
-    } catch {
-      setEvents(STARTER_EVENTS);
     }
+    load();
   }, []);
 
   // Save to localStorage whenever events change
@@ -91,10 +122,15 @@ export default function Timeline() {
       const oldIndex = prev.findIndex((e) => e.id === active.id);
       const newIndex = prev.findIndex((e) => e.id === over.id);
       if (oldIndex === -1 || newIndex === -1) return prev;
-      const reordered = arrayMove(prev, oldIndex, newIndex);
-      return reordered.map((e, i) => ({ ...e, order: i }));
+      const reordered = arrayMove(prev, oldIndex, newIndex).map((e, i) => ({ ...e, order: i }));
+      if (sheetsConfigured) {
+        setSyncing(true);
+        syncToSheet("reorder", { events: reordered.map((e) => ({ id: e.id, order: e.order })) })
+          .finally(() => setSyncing(false));
+      }
+      return reordered;
     });
-  }, []);
+  }, [sheetsConfigured]);
 
   const handleAddEvent = () => {
     setEditingEvent(null);
@@ -108,18 +144,19 @@ export default function Timeline() {
 
   const handleSaveEvent = (eventData: Omit<TimelineEvent, "id" | "order">) => {
     if (editingEvent) {
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === editingEvent.id ? { ...e, ...eventData } : e
-        )
-      );
+      const updated = { ...editingEvent, ...eventData };
+      setEvents((prev) => prev.map((e) => (e.id === editingEvent.id ? updated : e)));
+      if (sheetsConfigured) {
+        setSyncing(true);
+        syncToSheet("update", { event: updated }).finally(() => setSyncing(false));
+      }
     } else {
-      const newEvent: TimelineEvent = {
-        ...eventData,
-        id: generateId(),
-        order: events.length,
-      };
+      const newEvent: TimelineEvent = { ...eventData, id: generateId(), order: events.length };
       setEvents((prev) => [...prev, newEvent]);
+      if (sheetsConfigured) {
+        setSyncing(true);
+        syncToSheet("create", { event: newEvent }).finally(() => setSyncing(false));
+      }
     }
   };
 
@@ -128,6 +165,10 @@ export default function Timeline() {
       const filtered = prev.filter((e) => e.id !== id);
       return filtered.map((e, i) => ({ ...e, order: i }));
     });
+    if (sheetsConfigured) {
+      setSyncing(true);
+      syncToSheet("delete", { id }).finally(() => setSyncing(false));
+    }
   };
 
   const activeEvent = activeId ? events.find((e) => e.id === activeId) : null;
@@ -164,6 +205,17 @@ export default function Timeline() {
           <p className="text-white/40 text-lg">
             Your story, beautifully told
           </p>
+          {syncing && (
+            <p className="text-purple-400/70 text-xs mt-2 animate-pulse">Syncing to Google Sheets…</p>
+          )}
+          {!sheetsConfigured && mounted && (
+            <div className="mt-4 inline-block px-4 py-2 rounded-xl border border-yellow-500/30 bg-yellow-500/5 text-yellow-300/70 text-xs text-left max-w-sm">
+              <strong>💡 Connect Google Sheets</strong> — add{" "}
+              <code className="bg-white/10 px-1 rounded">APPS_SCRIPT_URL</code> to{" "}
+              <code className="bg-white/10 px-1 rounded">.env.local</code> to sync your timeline.{" "}
+              See <code className="bg-white/10 px-1 rounded">SHEETS_SETUP.md</code> for the setup guide.
+            </div>
+          )}
         </motion.div>
 
         {/* Add Event Button */}
