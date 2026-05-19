@@ -7,8 +7,11 @@ import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   PointerSensor, TouchSensor, useSensor, useSensors, closestCenter,
 } from "@dnd-kit/core";
-import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
+import {
+  SortableContext, arrayMove,
+  verticalListSortingStrategy, horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { restrictToVerticalAxis, restrictToHorizontalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { Timeline, TimelineEvent, TimelineMeta, COLOR_MAP, makeStarterEvents } from "@/types/timeline";
 import EventCard from "./EventCard";
 import EventModal from "./EventModal";
@@ -16,6 +19,8 @@ import ShareModal from "./ShareModal";
 
 const LIST_KEY = "tl_list";
 const DATA_PREFIX = "tl_";
+
+type LayoutMode = "vertical" | "horizontal";
 
 function genId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -49,6 +54,12 @@ async function syncEvents(timeline: Timeline) {
   } catch { /* fire-and-forget */ }
 }
 
+function formatDate(dateStr: string) {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
+}
+
 export default function TimelineEditor({
   timelineId,
   urlKey,
@@ -64,23 +75,20 @@ export default function TimelineEditor({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [layout, setLayout] = useState<LayoutMode>("vertical");
 
   useEffect(() => {
     async function load() {
-      // 1. Determine editKey: URL param takes precedence, then localStorage
       let editKey = urlKey ?? getEditKeyFromList(timelineId);
 
       if (!editKey) {
-        // Try fetching from API anyway (view), then block editing
         setUnauthorized(true);
         setLoading(false);
         return;
       }
 
-      // 2. Load timeline data from localStorage first (fastest)
       let tl = loadTimelineLocally(timelineId);
 
-      // 3. If not in localStorage, try API
       if (!tl) {
         try {
           const res = await fetch(`/api/timelines/${timelineId}`);
@@ -92,35 +100,38 @@ export default function TimelineEditor({
         } catch { /* ignore */ }
       }
 
-      // 4. If still nothing, create a brand-new timeline (user may be on a new device with edit link)
       if (!tl) {
         tl = {
-          id: timelineId,
-          name: "My Timeline",
-          description: "",
-          editKey,
-          createdAt: new Date().toISOString(),
+          id: timelineId, name: "My Timeline", description: "",
+          editKey, createdAt: new Date().toISOString(),
           events: makeStarterEvents(timelineId),
         };
         saveTimelineLocally(tl);
       } else {
-        // Make sure editKey is stored (user arrived via share link)
         tl = { ...tl, editKey };
         saveTimelineLocally(tl);
       }
 
-      // Persist to "my list" so it shows on dashboard
       const list: TimelineMeta[] = JSON.parse(localStorage.getItem(LIST_KEY) ?? "[]");
       if (!list.find((m) => m.id === timelineId)) {
         list.unshift({ id: tl.id, name: tl.name, description: tl.description, editKey, createdAt: tl.createdAt });
         localStorage.setItem(LIST_KEY, JSON.stringify(list));
       }
 
+      // Restore saved layout preference
+      const savedLayout = localStorage.getItem(`tl_layout_${timelineId}`) as LayoutMode | null;
+      if (savedLayout) setLayout(savedLayout);
+
       setTimeline(tl);
       setLoading(false);
     }
     load();
   }, [timelineId, urlKey]);
+
+  const toggleLayout = (mode: LayoutMode) => {
+    setLayout(mode);
+    localStorage.setItem(`tl_layout_${timelineId}`, mode);
+  };
 
   const save = useCallback((updated: Timeline) => {
     saveTimelineLocally(updated);
@@ -200,9 +211,13 @@ export default function TimelineEditor({
 
   return (
     <div className="min-h-screen px-4 py-10 md:py-16">
-      <div className="max-w-2xl mx-auto">
+      <div className={layout === "horizontal" ? "max-w-full" : "max-w-2xl mx-auto"}>
         {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-10 ${layout === "horizontal" ? "max-w-2xl mx-auto" : ""}`}
+        >
           <Link href="/" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-700 transition-colors mb-5">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
@@ -217,7 +232,7 @@ export default function TimelineEditor({
               )}
               {syncing && <p className="text-xs text-purple-500 mt-1 animate-pulse">Syncing…</p>}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <Link
                 href={`/t/${timelineId}`}
                 className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all"
@@ -234,12 +249,12 @@ export default function TimelineEditor({
           </div>
         </motion.div>
 
-        {/* Add Event button */}
+        {/* Toolbar: Add Event + Layout Toggle */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.15 }}
-          className="flex justify-center mb-10"
+          className={`flex items-center justify-between gap-4 mb-10 flex-wrap ${layout === "horizontal" ? "max-w-2xl mx-auto" : ""}`}
         >
           <button
             onClick={() => { setEditingEvent(null); setIsModalOpen(true); }}
@@ -248,6 +263,34 @@ export default function TimelineEditor({
             <span className="text-2xl group-hover:rotate-90 transition-transform duration-200">+</span>
             Add Event
           </button>
+
+          {/* Layout toggle */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+            <button
+              onClick={() => toggleLayout("vertical")}
+              title="Vertical layout"
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                layout === "vertical"
+                  ? "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              <VerticalIcon />
+              Vertical
+            </button>
+            <button
+              onClick={() => toggleLayout("horizontal")}
+              title="Horizontal layout"
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                layout === "horizontal"
+                  ? "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              <HorizontalIcon />
+              Horizontal
+            </button>
+          </div>
         </motion.div>
 
         {/* Timeline */}
@@ -263,44 +306,92 @@ export default function TimelineEditor({
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+            modifiers={layout === "vertical"
+              ? [restrictToVerticalAxis, restrictToWindowEdges]
+              : [restrictToHorizontalAxis, restrictToWindowEdges]
+            }
           >
-            <SortableContext items={sorted.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-              <div className="relative">
-                <div className="timeline-line absolute left-[22px] top-0 bottom-0 w-0.5" />
-                <div className="space-y-6">
-                  <AnimatePresence mode="popLayout">
-                    {sorted.map((event) => (
-                      <div key={event.id} className="relative flex items-start gap-5">
-                        <div className="relative z-10 mt-5 flex-shrink-0">
-                          <div
-                            className={`w-4 h-4 rounded-full border-2 border-white ${COLOR_MAP[event.color].dot}`}
-                            style={{ boxShadow: `0 0 8px ${COLOR_MAP[event.color].glow}` }}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <EventCard
+            <AnimatePresence mode="wait" initial={false}>
+              {layout === "vertical" ? (
+                <motion.div
+                  key="vertical"
+                  initial={{ opacity: 0, x: -16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <SortableContext items={sorted.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                    <div className="relative">
+                      <div className="timeline-line absolute left-[22px] top-0 bottom-0 w-0.5" />
+                      <div className="space-y-6">
+                        <AnimatePresence mode="popLayout">
+                          {sorted.map((event) => (
+                            <div key={event.id} className="relative flex items-start gap-5">
+                              <div className="relative z-10 mt-5 flex-shrink-0">
+                                <div
+                                  className={`w-4 h-4 rounded-full border-2 border-white ${COLOR_MAP[event.color].dot}`}
+                                  style={{ boxShadow: `0 0 8px ${COLOR_MAP[event.color].glow}` }}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <EventCard
+                                  event={event}
+                                  onEdit={(ev) => { setEditingEvent(ev); setIsModalOpen(true); }}
+                                  onDelete={handleDelete}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  </SortableContext>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="horizontal"
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 16 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-x-auto pb-6"
+                  style={{ cursor: "default" }}
+                >
+                  <SortableContext items={sorted.map((e) => e.id)} strategy={horizontalListSortingStrategy}>
+                    <div className="relative inline-flex items-start gap-0 min-w-max px-4">
+                      {/* Horizontal gradient line */}
+                      <div
+                        className="timeline-line absolute top-[18px] h-0.5"
+                        style={{ left: "calc(2rem + 8px)", right: "calc(2rem + 8px)" }}
+                      />
+                      <AnimatePresence mode="popLayout">
+                        {sorted.map((event, i) => (
+                          <HorizontalEventCard
+                            key={event.id}
                             event={event}
+                            index={i}
                             onEdit={(ev) => { setEditingEvent(ev); setIsModalOpen(true); }}
                             onDelete={handleDelete}
                           />
-                        </div>
-                      </div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </SortableContext>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  </SortableContext>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <DragOverlay>
               {activeEvent && (
-                <div className={`bg-white rounded-2xl p-5 border-l-4 ${COLOR_MAP[activeEvent.color].border} rotate-1 opacity-90`}
-                  style={{ boxShadow: "0 20px 48px rgba(0,0,0,0.18)" }}>
-                  <div className="flex items-center gap-4">
+                <div
+                  className={`bg-white rounded-2xl p-4 border-l-4 ${COLOR_MAP[activeEvent.color].border} rotate-1 opacity-90 w-52`}
+                  style={{ boxShadow: "0 20px 48px rgba(0,0,0,0.18)" }}
+                >
+                  <div className="flex items-center gap-3">
                     <span className="text-3xl">{activeEvent.emoji}</span>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs text-gray-400 uppercase tracking-wider">{activeEvent.date}</p>
-                      <p className="font-bold text-gray-900">{activeEvent.title}</p>
+                      <p className="font-bold text-gray-900 truncate">{activeEvent.title}</p>
                     </div>
                   </div>
                 </div>
@@ -314,9 +405,9 @@ export default function TimelineEditor({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1 }}
-            className="text-center text-gray-300 text-sm mt-10"
+            className={`text-center text-gray-300 text-sm mt-10 ${layout === "horizontal" ? "max-w-2xl mx-auto" : ""}`}
           >
-            Drag cards to reorder your timeline
+            {layout === "vertical" ? "Drag cards to reorder your timeline" : "Drag cards left or right to reorder"}
           </motion.p>
         )}
       </div>
@@ -336,5 +427,160 @@ export default function TimelineEditor({
         timelineName={timeline.name}
       />
     </div>
+  );
+}
+
+// ── Horizontal card (sortable, compact) ──────────────────────────────────────
+
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+function HorizontalEventCard({
+  event,
+  index,
+  onEdit,
+  onDelete,
+}: {
+  event: TimelineEvent;
+  index: number;
+  onEdit: (e: TimelineEvent) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const colors = COLOR_MAP[event.color];
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: event.id });
+
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <motion.div
+      ref={setNodeRef}
+      style={style}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ type: "spring", damping: 28, stiffness: 320, delay: index * 0.05 }}
+      className="relative flex flex-col items-center w-52 px-3"
+    >
+      {/* Dot on the line */}
+      <div
+        className={`relative z-10 w-4 h-4 rounded-full border-2 border-white ${colors.dot} mb-4 flex-shrink-0`}
+        style={{ boxShadow: `0 0 8px ${colors.glow}` }}
+      />
+
+      {/* Card */}
+      <div
+        className={`w-full bg-white rounded-2xl ${colors.bg} card-shadow p-4`}
+        style={{
+          borderTop: `4px solid ${colors.swatch}`,
+          ...(isDragging ? { boxShadow: "0 16px 48px rgba(0,0,0,0.15)" } : {}),
+        }}
+      >
+        {/* Drag handle row */}
+        <div className="flex items-center justify-between mb-3">
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 rounded-lg hover:bg-black/5 text-gray-300 hover:text-gray-400 transition-colors touch-none"
+            title="Drag to reorder"
+          >
+            <svg width="14" height="8" viewBox="0 0 14 8" fill="currentColor">
+              <rect x="0" y="0" width="14" height="2" rx="1" />
+              <rect x="0" y="6" width="14" height="2" rx="1" />
+            </svg>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => onEdit(event)}
+              className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-all"
+              title="Edit"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+            <AnimatePresence mode="wait">
+              {confirmDelete ? (
+                <motion.div
+                  key="confirm"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="flex items-center gap-1"
+                >
+                  <button
+                    onClick={() => onDelete(event.id)}
+                    className="px-1.5 py-0.5 text-xs font-semibold rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-all"
+                  >
+                    Del
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-1.5 py-0.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"
+                  >
+                    No
+                  </button>
+                </motion.div>
+              ) : (
+                <motion.button
+                  key="del"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                  title="Delete"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Emoji + title */}
+        <div className="text-center mb-2">
+          <div className="text-3xl leading-none mb-2">{event.emoji}</div>
+          <h3 className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{event.title}</h3>
+        </div>
+
+        {/* Date */}
+        <p className="text-xs font-semibold text-gray-400 text-center mb-2">{formatDate(event.date)}</p>
+
+        {/* Description */}
+        {event.description && (
+          <p className="text-xs text-gray-500 leading-relaxed text-center line-clamp-3">{event.description}</p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Layout icons ──────────────────────────────────────────────────────────────
+
+function VerticalIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <line x1="3" y1="1" x2="3" y2="13" />
+      <line x1="1" y1="4" x2="13" y2="4" />
+      <line x1="1" y1="8" x2="10" y2="8" />
+      <line x1="1" y1="12" x2="11" y2="12" />
+    </svg>
+  );
+}
+
+function HorizontalIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <line x1="1" y1="3" x2="13" y2="3" />
+      <line x1="4" y1="1" x2="4" y2="13" />
+      <line x1="8" y1="1" x2="8" y2="10" />
+      <line x1="12" y1="1" x2="12" y2="11" />
+    </svg>
   );
 }
